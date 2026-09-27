@@ -748,6 +748,21 @@ def evaluate(s: dict) -> dict:
 NODES = ("plan", "dispatch", "researcher", "review", "synthesize", "evaluate")
 
 
+def 한계(start: str = "plan") -> dict:
+    """LangGraph 의 폭주 방지 — **우리가 정한다.**
+
+    안 주면 기본값 25가 걸린다. 그 숫자는 우리 설정과 아무 관계가 없어서, 바퀴를 늘리면
+    「왜 25인지 모르는 곳」에서 GraphRecursionError 가 난다.
+
+    한 바퀴에 도는 슈퍼스텝은 셋이다 — dispatch → researcher(팬아웃 한 묶음) → review.
+    거기에 plan · synthesize · evaluate 셋을 더하고, 여유 둘을 붙인다.
+    최대바퀴 8이면 3×8 + 3 + 2 = 29.
+    """
+    바퀴 = max(1, int(설정.get("최대바퀴", 2)))
+    걸음 = 3 * 바퀴 + (3 if start == "plan" else 2) + 2
+    return {"recursion_limit": 걸음}
+
+
 def build(start: str = "plan"):
     """start="dispatch" 면 ①기획을 건너뛴다 — 결재를 받고 나서 이어 돌릴 때 쓴다."""
     g = StateGraph(Research)
@@ -836,7 +851,7 @@ def run_from(question: str, plan_state: dict, overrides: dict | None = None) -> 
     설정적용(overrides)
     p = {**plan_state, "바퀴": plan_state.get("바퀴", 1), "승인됨": True}
     p.setdefault("배치", list(range(len(p.get("목차", [])))))
-    res = build(start="dispatch").compile().invoke({**_빈상태(question), "plan": p})
+    res = build(start="dispatch").compile().invoke({**_빈상태(question), "plan": p}, 한계("dispatch"))
     emit("run.end", elapsed=round(time.time() - _START[0], 1), calls=COST["calls"],
          report=res["report"], metrics=res["metrics"])
     return res
@@ -849,7 +864,7 @@ def run(question: str) -> dict:
          cast=CALLSIGNS, staff=["편집장", "최계량"])
     init = {"question": question, "plan": {}, "sections": [], "visited": [], "report": "",
             "metrics": {}, "log": [], "task": {}, "prior": {}}
-    res = build().compile().invoke(init)
+    res = build().compile().invoke(init, 한계())
     emit("run.end", elapsed=round(time.time() - _START[0], 1), calls=COST["calls"],
          report=res["report"], metrics=res["metrics"])
     return res
