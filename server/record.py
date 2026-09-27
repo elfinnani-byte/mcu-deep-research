@@ -12,8 +12,12 @@
 import io, json, sys
 from pathlib import Path
 
-import pipeline
-from pipeline import run, on_event, on_approval, 설정
+try:
+    from . import pipeline
+    from .pipeline import run, on_event, on_approval, 설정
+except ImportError:
+    import pipeline
+    from pipeline import run, on_event, on_approval, 설정
 
 OUT_DIR = Path(__file__).parent.parent / "web" / "replay"
 

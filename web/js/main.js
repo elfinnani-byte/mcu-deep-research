@@ -7,6 +7,7 @@ import { apply } from './choreographer.js';
 import { createRenderer } from './renderer.js';
 import { ScriptedSource, LiveSource, EventQueue } from './stream.js';
 import { createUI } from './ui.js';
+import { getKey } from './key.js';
 
 const params = new URLSearchParams(location.search);
 const 재생본 = params.get('replay') || 'q1-기본';
@@ -29,18 +30,27 @@ let 결재대기 = null;                     // 라이브 — 사람이 누를 �
 const ui = createUI(world, queue, {
   replays: 목록, current: 재생본,
   onApprove: (ok, reason) => {
-    if (결재대기) { const r = 결재대기; 결재대기 = null; world.approval = null; r([ok, reason]); return; }
+    // 라이브 — LiveSource 가 서버 응답을 보고 approval.result 를 만들어 큐에 넣는다.
+    //          여기서 또 만들면 소집 대사가 두 번 나온다.
+    if (결재대기) {
+      const r = 결재대기; 결재대기 = null; world.approval = null;
+      queue.resolveApproval(true, null);      // ★ 큐의 결재 대기를 푼다 — 안 풀면 뒤가 안 흐른다
+      r([ok, reason]);                        // (반려여도 서버가 다시 짜 주므로 큐는 그냥 연다)
+      return;
+    }
+    // 재생 — 녹화에 approval.result 가 들어 있지만, 사람이 적은 반려 사유를 살리려고 하나 만든다
     apply(world, { type:'approval.result', approved: ok, reason });
     queue.resolveApproval(ok, ok ? null : 반려기록);
   },
   onRun: async (question, settings) => {
     Object.assign(world, createWorld());          // 무대를 비우고 다시 시작
-    world.live = true;                            // 사용량을 정확히 셀 수 있는 모드
+    world.live = true;
     loadRacks(world, racksJson);
     queue.load([]); queue.waiting = null; queue.i = 0;
+    반려기록 = null;                               // 라이브에는 녹화 분기가 없다 — 서버가 다시 짠다
     const src = new LiveSource({
-      question, settings,
-      onEvent: e => queue.push(e),                // 도착하는 대로 큐에 쌓고, 큐가 속도를 정한다
+      question, settings, key: getKey(),           // 키는 요청 본문으로만 나간다
+      onEvent: e => queue.push(e),                 // 도착하는 대로 큐에 쌓고, 큐가 속도를 정한다
       onApprove: () => new Promise(res => { 결재대기 = res; }),
     });
     document.getElementById('srcName').textContent = '라이브 · 실제 실행';

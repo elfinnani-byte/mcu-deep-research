@@ -21,7 +21,12 @@ from typing import Annotated, TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
-from llm import ask, COST, reset_cost
+try:                                    # 패키지로 부를 때 (api/ · python -m server.pipeline)
+    from . import llm
+except ImportError:                       # server/ 안에서 곧바로 돌릴 때
+    import llm
+
+ask, COST, reset_cost = llm.ask, llm.COST, llm.reset_cost
 
 # ── 코퍼스 ───────────────────────────────────────────────────────────────
 CORPUS = json.loads((Path(__file__).parent.parent / "corpus.json").read_text(encoding="utf-8"))
@@ -290,12 +295,18 @@ def dispatch(s: dict) -> dict:
     축, 제목, idxs = p.get("축", "서사"), p.get("제목", ""), p["배치"]
     시도 = 0
 
-    while True:
-        for i, d in 배정(s["question"], toc, idxs, read, 축).items():
-            toc[i]["시작문서"] = d
-        _배정이벤트(toc, idxs, p["바퀴"], 시도 + 1)
+    # 승인된 배정은 **다시 돌리지 않는다.** 서버리스에서 2단계로 나눌 때,
+    # 사람이 승인한 시작 문서가 2단계에서 바뀌어 버리면 결재가 헛것이 된다.
+    # (assign.done 도 1단계에서 이미 보냈으니 다시 보내지 않는다)
+    승인됨 = bool(p.get("승인됨")) and p["바퀴"] == 1
 
-        if p["바퀴"] != 1 or _approver is None:      # 재위임 바퀴는 결재를 묻지 않는다
+    while True:
+        if not 승인됨:
+            for i, d in 배정(s["question"], toc, idxs, read, 축).items():
+                toc[i]["시작문서"] = d
+            _배정이벤트(toc, idxs, p["바퀴"], 시도 + 1)
+
+        if 승인됨 or p["바퀴"] != 1 or _approver is None:   # 재위임 바퀴는 결재를 묻지 않는다
             break
         emit("approval.request", attempt=시도 + 1)
         approved, 사유 = _approver({"축": 축, "제목": 제목, "목차": toc})
@@ -549,7 +560,7 @@ def evaluate(s: dict) -> dict:
         "입력자수": COST["coord_chars"] + COST["sub_chars"],
         "입력토큰": (COST["coord_chars"] + COST["sub_chars"]) // 4,
         "입력비용": round((COST["coord_chars"] + COST["sub_chars"]) / 4 / 1_000_000 * 0.15, 4),
-        "모델": getattr(__import__("llm").backend(), "name", "gpt-4o-mini"),
+        "모델": getattr(llm.backend(), "name", "gpt-4o-mini"),
     }
     emit("evaluate.done", metrics=m)
     return {"metrics": m,
@@ -562,11 +573,12 @@ def evaluate(s: dict) -> dict:
 NODES = ("plan", "dispatch", "researcher", "review", "synthesize", "evaluate")
 
 
-def build():
+def build(start: str = "plan"):
+    """start="dispatch" 면 ①기획을 건너뛴다 — 결재를 받고 나서 이어 돌릴 때 쓴다."""
     g = StateGraph(Research)
     for name in NODES:
         g.add_node(name, globals()[name])          # 이름으로 찾으니 갈아 끼울 수 있다
-    g.add_edge(START, "plan")
+    g.add_edge(START, start)
     g.add_edge("plan", "dispatch")
     g.add_conditional_edges("dispatch", lambda s: globals()["fanout"](s), ["researcher", "review"])
     g.add_edge("researcher", "review")
@@ -577,11 +589,80 @@ def build():
     return g
 
 
+# ── 두 단계로 잘라 쓰기 (서버리스) ──────────────────────────────────────
+# 서버리스 함수는 **사람을 기다리는 동안에도 실행 시간을 태운다.** 결재 게이트가 있는
+# 우리 파이프라인은 그래서 한 번에 돌릴 수 없다. 두 번 나눠 부른다.
+#
+#   1) plan_only()  ① 기획 + ② 배정까지 (LLM 2회, 몇 초) → 목차를 돌려주고 끝낸다
+#      ── 사람이 승인/반려를 누른다. 이 동안 함수는 돌지 않는다 ──
+#   2) run_from()   승인된 목차를 받아 파견부터 끝까지
+#
+# 브라우저 안에서 돌 때는 run() 하나로 충분하다 — 둘 다 남겨 둔다.
+
+def 설정적용(overrides: dict | None) -> dict:
+    """요청마다 오는 설정을 씌운다. 아는 열쇠만 받고, 숫자는 범위를 자른다."""
+    if overrides:
+        for k, v in overrides.items():
+            if k not in 설정:
+                continue
+            설정[k] = max(1, min(8, int(v))) if isinstance(설정[k], int) else bool(v)
+    return dict(설정)
+
+
+def _빈상태(question: str) -> dict:
+    return {"question": question, "plan": {}, "sections": [], "visited": [], "report": "",
+            "metrics": {}, "log": [], "task": {}, "prior": {}}
+
+
+def plan_only(question: str, overrides: dict | None = None,
+              반려사유: str = "", attempt: int = 1) -> dict:
+    """① 기획 + ② 배정. **결재 직전에서 멈춘다.**
+
+    approval.request 까지 내보내고, 사람이 볼 목차를 돌려준다.
+    반려되면 사유를 실어 다시 부르면 된다 — 편집장이 그 사유를 반영해 다시 짠다.
+    attempt 는 몇 번째 결재인지 (화면이 「1차 / 2차」를 보여 준다).
+    """
+    _START[0] = time.time()
+    reset_cost()
+    설정적용(overrides)
+    if attempt == 1:                                   # 다시 짜는 중이면 무대를 비우지 않는다
+        emit("run.start", question=question, corpus=len(DOCS), settings=dict(설정),
+             cast=CALLSIGNS, staff=["편집장", "최계량"])
+
+    if 반려사유:
+        축, 제목, toc0 = _목차정리(_기획요청(question, 반려사유), question)
+        p = {"축": 축, "제목": 제목, "목차": toc0, "배치": list(range(len(toc0))), "바퀴": 1}
+        emit("plan.done", title=제목, axis=축, attempt=attempt,
+             sections=[{"idx": i, "name": t["절"], "brief": t["지시"], "badge": t["명찰"],
+                        "cast": t["콜사인"], "startDoc": ""} for i, t in enumerate(toc0)])
+    else:
+        p = plan(_빈상태(question))["plan"]              # ① 기획 — plan.done 을 내보낸다
+    toc = [dict(x) for x in p["목차"]]
+    idxs = p["배치"]
+    for i, d in 배정(question, toc, idxs, set(), p.get("축", "서사")).items():
+        toc[i]["시작문서"] = d                          # ② 배정
+    _배정이벤트(toc, idxs, 1, attempt)
+    emit("approval.request", attempt=attempt)
+    return {"plan": {**p, "목차": toc}, "calls": COST["calls"]}
+
+
+def run_from(question: str, plan_state: dict, overrides: dict | None = None) -> dict:
+    """승인된 목차를 받아 **파견부터 끝까지.** 배정은 다시 돌리지 않는다."""
+    _START[0] = time.time()
+    설정적용(overrides)
+    p = {**plan_state, "바퀴": plan_state.get("바퀴", 1), "승인됨": True}
+    p.setdefault("배치", list(range(len(p.get("목차", [])))))
+    res = build(start="dispatch").compile().invoke({**_빈상태(question), "plan": p})
+    emit("run.end", elapsed=round(time.time() - _START[0], 1), calls=COST["calls"],
+         report=res["report"], metrics=res["metrics"])
+    return res
+
+
 def run(question: str) -> dict:
     _START[0] = time.time()
     reset_cost()
     emit("run.start", question=question, corpus=len(DOCS), settings=dict(설정),
-         cast=CALLSIGNS, staff=["한기획", "나배정", "정반송", "윤카피", "최계량"])
+         cast=CALLSIGNS, staff=["편집장", "최계량"])
     init = {"question": question, "plan": {}, "sections": [], "visited": [], "report": "",
             "metrics": {}, "log": [], "task": {}, "prior": {}}
     res = build().compile().invoke(init)

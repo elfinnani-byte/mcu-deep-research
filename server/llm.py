@@ -26,12 +26,27 @@ def reset_cost():
     COST.update(calls=0, sub_chars=0, coord_chars=0)
 
 
+# 방문자 키 — 서버리스에서는 요청마다 다르다.
+# **인자로만 들고 다닌다.** 파일·로그·응답 어디에도 쓰지 않는다.
+_key = None
+
+
+def use_key(key):
+    """이 요청에 쓸 키를 갈아 끼운다. None 이면 환경변수(.env)로 돌아간다."""
+    global _key, _backend
+    새 = (key or "").strip() or None
+    if 새 != _key:
+        _key, _backend = 새, None      # 키가 바뀌면 백엔드를 다시 만든다
+
+
 class _OpenAI:
     name = "gpt-4o-mini"
 
     def __init__(self):
         from langchain_openai import ChatOpenAI
-        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, timeout=90, max_retries=0)
+        kw = {"api_key": _key} if _key else {}
+        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, timeout=90,
+                              max_retries=0, **kw)
 
     def __call__(self, system, user):
         return self.llm.invoke([{"role": "system", "content": system},
@@ -43,7 +58,7 @@ class _Anthropic:
 
     def __init__(self):
         import anthropic
-        self.client = anthropic.Anthropic()
+        self.client = anthropic.Anthropic(api_key=_key) if _key else anthropic.Anthropic()
 
     def __call__(self, system, user):
         r = self.client.messages.create(

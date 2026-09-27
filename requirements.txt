@@ -1,0 +1,6 @@
+# 서버리스 함수(api/)가 실제로 쓰는 것만.
+# langchain-core 는 langgraph·langchain-openai 가 끌어온다.
+# 여기 적은 버전 = 이 저장소에서 녹화를 뜬 버전이다. 배포도 같은 것으로 돈다.
+langgraph==1.2.11
+langchain-openai==1.6.2
+python-dotenv==1.2.3

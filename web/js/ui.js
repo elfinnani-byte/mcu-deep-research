@@ -3,7 +3,7 @@
 
 import { DASH, 그물, C, BADGE_COLORS, FLOW, STAFF, shortRole, 축이름, 축설명 } from './config.js';
 import { 조판, 본문자수 } from './report.js';
-import { getKey, setKey, hasKey, COST, MODEL } from './llm.js';
+import { getKey, setKey, hasKey } from './key.js';
 
 const $ = id => document.getElementById(id);
 const pct = v => `${(v ?? 0).toFixed(1)}%`;
@@ -116,23 +116,27 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     `<div class="u" data-u="${i}"><span>${k}</span><b>—</b></div>`).join('')
     + '<div class="hint" id="usageHint"></div>';
 
+  // 사용량은 **⑥ 평가가 센 값**을 그대로 보여 준다 (world.metrics).
+  // 예전에는 브라우저가 모델을 직접 불러서 실시간으로 셀 수 있었는데,
+  // 파이프라인이 서버로 옮겨 가면서 그 자리가 없어졌다. 대신 끝나면 정확한 값이 온다.
   function renderUsage() {
-    const live = world.live;
-    const u = world.usage || {};
-    const calls = live ? COST.calls : (u.calls || world.calls || 0);
-    const tokens = Math.floor((COST.coord + COST.sub) / 4);
-    const cost = (COST.coord + COST.sub) / 4 / 1e6 * 0.15;
+    const live = world.live, m = world.metrics, u = world.usage || {};
+    // **없는 값은 「—」 로 둔다.** 녹화 22편에는 호출 수만 들어 있어서,
+    // 0 으로 채우면 "토큰 0개·비용 $0" 이라는 거짓말이 된다.
+    const 호출 = m?.호출 ?? u.calls ?? world.calls ?? 0;
     const v = [
-      live ? MODEL : (u.model || '기록 없음'),
-      calls ? `${calls}회` : '—',
-      live ? `≈ ${num(tokens)}` : '—',
-      live ? `≈ $${cost.toFixed(4)}` : '—',
+      // world.usage.model 은 빈 문자열로 시작한다 — ?? 는 '' 를 안 걸러내므로 || 를 쓴다
+      m?.모델 || u.model || (live ? '실행 중…' : '기록 없음'),
+      호출 ? `${호출}회` : '—',
+      m?.입력토큰 != null ? `≈ ${num(m.입력토큰)}` : '—',
+      m?.입력비용 != null ? `≈ $${m.입력비용.toFixed(4)}` : '—',
     ];
     v.forEach((x, i) => { el.usage.querySelector(`[data-u="${i}"] b`).textContent = x; });
     $('usageMode').textContent = live ? '라이브' : '재생';
-    $('usageHint').textContent = live
+    $('usageHint').textContent = m?.입력토큰 != null
       ? '모델에 실제로 넣은 글자 수를 4로 나눈 추정치입니다 (출력 토큰은 세지 않습니다).'
-      : '재생 모드는 저장된 호출 수만 보여 줍니다 — 토큰·비용은 라이브에서만 정확합니다.';
+      : live ? '⑥ 평가가 끝나면 호출 수·토큰·비용이 한 번에 들어옵니다.'
+             : '재생 모드는 저장된 호출 수만 보여 줍니다 — 토큰·비용은 라이브에서만 정확합니다.';
   }
 
   // ── 산출물 ───────────────────────────────────────────────
@@ -443,6 +447,9 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
 
   $('btnRun').onclick = async () => {
     const q = $('liveQ').value.trim(); if (!q) return;
+    // 재생이 결재 앞에서 멈춰 있을 수 있다 — 그 모달을 닫고 시작한다.
+    // 안 닫으면 라이브의 결재 모달과 겹쳐 어느 쪽을 승인하는지 알 수 없다.
+    closeApproval(); approvalShown = false;
     $('btnRun').disabled = true;
     $('runState').className = 'runstate';
     $('runState').textContent = '코퍼스를 받고 편집장을 부르는 중… (탭을 닫으면 중단됩니다)';

@@ -10,7 +10,10 @@
 import io, json, sys, time, traceback
 from pathlib import Path
 
-from record import record
+try:
+    from .record import record
+except ImportError:
+    from record import record
 
 질문 = [
     ("q1", "서사형", "인피니티 스톤을 둘러싼 주요 사건들은 무엇이고 각각의 원인은 무엇인가?"),
