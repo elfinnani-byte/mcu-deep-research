@@ -322,8 +322,9 @@ canvas#stage{display:block;width:100%;height:100%}
 .pick span{display:block;font-size:10px;opacity:.55;margin-top:2px}
 .pick.sm b{font-size:11.5px}
 .pick.none{opacity:.35;cursor:default}
-/* 질문 한 줄 — 축 배지 + 제목 */
-.pick.one{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center;padding:7px 11px}
+/* 질문 한 줄 — 축 배지 · 유형 배지 · 제목. 배지가 늘면 열도 늘려야 한다
+   (유형을 넣고 열을 그대로 뒀더니 제목이 다음 줄로 밀렸다) */
+.pick.one{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:center;padding:7px 11px}
 /* 축 배지 — 서사와 측면을 색으로 가른다.
    분류이지 상태가 아니므로 둘 다 차가운 쪽에서 고르고, 상태색(앰버·레드·그린)은 피한다. */
 .pick.one .ax{font-style:normal;font-size:9.5px;font-weight:700;color:#06131d;background:#7fb9d4;
@@ -331,7 +332,14 @@ canvas#stage{display:block;width:100%;height:100%}
 /* `.pick.one .ax` 가 (0,2,1) 이라 `.ax[data-ax]` (0,2,0) 로는 못 이긴다 — 같이 적어 준다 */
 .pick.one .ax[data-ax="서사"]{background:#5ec8e0}     /* 서사 — 청록 */
 .pick.one .ax[data-ax="측면"]{background:#b9a0e8}     /* 측면 — 보랏빛 */
+/* 질문의 성격 — 축과 다른 것이라 색도 다르게 둔다(축은 채운 배지, 유형은 테두리만) */
+.pick.one .qt{font-style:normal;font-size:9.5px;font-weight:700;border-radius:99px;
+  padding:1px 6px;white-space:nowrap;border:1px solid currentColor;color:#8fa6b8}
+.pick.one .qt[data-qt="단일"]{color:#e0a05e}      /* 나눌 이유가 없는 질문 — 주의색 */
+.pick.one .qt[data-qt="다갈래"]{color:#79c98f}    /* 이 구조가 맞는 유형 */
+.pick.one .qt[data-qt="추적"]{color:#d98fb4}      /* 링크를 타야 하는 유형 */
 .pick.one b{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pi .why{grid-column:1/-1;font-style:normal;font-size:10.5px;line-height:1.55;color:#cfa}
 /* 실행 설정 — 읽기 전용 칩 한 줄 */
 .tabpane .knobs{display:flex;flex-wrap:wrap;gap:5px}
 .chip{background:#16283a;border-radius:99px;padding:4px 10px;font-size:10.5px;color:#9fb3c4}

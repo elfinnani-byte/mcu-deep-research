@@ -1,7 +1,7 @@
 // 캔버스 바깥의 DOM 전부 — 공정 바 · 관제 보드 · 계기판 · 결재 모달 · 보고서 뷰어 · 로그
 // 무대(캔버스)는 "누가 어디서 무엇을 하는가"만 보여주고, 읽을 거리는 전부 여기에 있다.
 
-import { DASH, 그물, C, BADGE_COLORS, FLOW, STAFF, shortRole, 축이름, 축설명 } from './config.js';
+import { DASH, 그물, C, BADGE_COLORS, FLOW, STAFF, shortRole, 축이름, 축설명, 유형설명 } from './config.js';
 import { 조판, 본문자수 } from './report.js';
 import { getKey, setKey, hasKey } from './key.js';
 
@@ -369,7 +369,9 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
   function renderPicks() {
     $('pickQ').innerHTML = 질문들.map((r, i) => `
       <button class="pick one ${r.question === 고른질문 ? 'on' : ''}" data-q="${i}">
-        <i class="ax" data-ax="${r.axis || ''}" title="${esc(축설명(r.axis))}">${축이름(r.axis)}</i><b>${esc(r.question)}</b>
+        <i class="ax" data-ax="${r.axis || ''}" title="${esc(축설명(r.axis))}">${축이름(r.axis)}</i>
+        ${r.유형 ? `<i class="qt" data-qt="${r.유형}" title="${esc(유형설명(r.유형))}">${r.유형}</i>` : ''}
+        <b>${esc(r.question)}</b>
       </button>`).join('');
     $('pickV').innerHTML = 변형.map(v => {
       const 있 = 본편.some(r => r.question === 고른질문 && 변형키(r) === v.key);
@@ -382,6 +384,7 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     const m = r?.metrics || {};
     $('pickInfo').innerHTML = r
       ? `<div class="pi"><b>${r.name}</b>
+           ${r.여기서볼것 ? `<em class="why">여기서 볼 것 — ${esc(r.여기서볼것)}</em>` : ''}
            <span>근거가 달린 문장 ${m.근거율 ?? '—'}% · 지어낸 인용 ${m.허위인용 ?? '—'}곳
                 · 한 문서에 쏠림 ${m.편중 ?? '—'}% · 근거 없는 절 ${m.인용0절 ?? '—'}개</span>
            ${r.name === current ? '<i class="now">지금 재생 중</i>'

@@ -77,7 +77,8 @@ Source ──> EventQueue ──> Choreographer ──> World ──> Renderer
 | `web/replay/` | 실제 실행 기록 22편 — **손으로 만들지 않는다** |
 | `server/` | 파이썬 파이프라인 · 녹화 도구 |
 | `api/` | 서버리스 함수 두 개 — `/api/plan`(결재 앞에서 멈춤) · `/api/run`(SSE) |
-| `tools/` | [반복분석](tools/반복분석.py) (녹화 집계·판정) · [배포검증](tools/배포검증.py) (정적+함수 확인) |
+| `data/` | [질문 세트 8건](data/questions.json) — 유형과 「왜 나눌 만한가」. 질문은 **여기 한 곳**에만 적는다 |
+| `tools/` | [질문검사](tools/질문검사.py) · [녹화목록](tools/녹화목록.py) · [반복분석](tools/반복분석.py) · [배포검증](tools/배포검증.py) |
 | `docs/` | [현재 상태](docs/현재-상태.md) · [구조도](docs/구조도.md) · [설계도](docs/설계도.md) · [대본](docs/대본.md) · [사전등록](docs/사전등록.md) |
 
 처음 보는 사람은 [`docs/현재-상태.md`](docs/현재-상태.md) 부터,
