@@ -52,7 +52,8 @@ def 녹화들():
         회차 = int(조각[-1]) if 조각[-1].isdigit() else 1
         칸 = "-".join(조각[1:-1] if 조각[-1].isdigit() else 조각[1:]) or "기본"
         out.append({"파일": f.stem, "질문": 질문, "칸": 칸, "회차": 회차,
-                    "질문글": d.get("question", ""), "지표": m})
+                    "질문글": d.get("question", ""), "지표": m,
+                    "사전등록": d.get("사전등록") or {}})
     return out
 
 
@@ -94,6 +95,16 @@ def h1(rows):
     모음 = 칸모음(rows, H1_지표)
     print(f"\n── H1 — 명찰(역할)을 끄면 {H1_지표}이 오른다 ──")
     print(f"   대상 {' · '.join(H1_질문)} × {' / '.join(H1_칸)} · 칸당 3회")
+
+    # 반복분으로 뜬 녹화가 어느 사전등록 아래였나 — 해시가 녹화보다 앞서야 뜻이 있다
+    도장 = {}
+    for r in rows:
+        if r["회차"] > 1 and r["질문"] in H1_질문:
+            for k, v in (r["사전등록"] or {}).items():
+                도장.setdefault(k, set()).add(v)
+    for k, v in sorted(도장.items()):
+        상태 = next(iter(v)) if len(v) == 1 else f"⚠ 녹화마다 다르다 — {sorted(v)}"
+        print(f"   사전등록 {k}  {상태 or '⚠ 도장이 비었다'}")
 
     부족 = [(q, c) for q in H1_질문 for c in H1_칸 if len(모음.get((q, c), [])) < 3]
     폭들, 차이들 = [], {}

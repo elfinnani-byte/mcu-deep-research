@@ -9,8 +9,24 @@
 
 녹화 파일은 화면(ScriptedSource)이 그대로 재생한다.
 """
-import io, json, sys
+import io, json, subprocess, sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+# 사전등록 — 「돌리기 전에 적었다」는 것이 유일한 근거다.
+# 문서를 먼저 커밋해도 **녹화 파일만 보면** 그게 먼저였는지 알 수 없다.
+# 그래서 그 커밋을 녹화 안에 박는다. 녹화 시각보다 앞선 해시가 증거가 된다.
+사전등록파일 = ("docs/사전등록.md", "data/questions.json")
+
+
+def _커밋(경로: str) -> str:
+    """그 파일이 마지막으로 바뀐 커밋 — 없거나 git 이 아니면 빈 문자열."""
+    try:
+        r = subprocess.run(["git", "log", "-1", "--format=%h %ad", "--date=iso", "--", 경로],
+                           cwd=ROOT, capture_output=True, text=True, timeout=10)
+        return r.stdout.strip()
+    except Exception:
+        return ""
 
 try:
     from . import pipeline
@@ -57,6 +73,8 @@ def record(question: str, name: str, overrides: dict = None, 반려사유: str =
         "name": name, "question": question,
         "settings": {**원래설정, **(overrides or {})},
         "rejected": bool(반려사유),
+        # 이 녹화가 어느 사전등록 아래에서 떠졌나 — 해시가 녹화 시각보다 앞서야 뜻이 있다
+        "사전등록": {p: _커밋(p) for p in 사전등록파일},
         "events": events,
     }, ensure_ascii=False), encoding="utf-8")
     print(f"\n저장: {out}  ({len(events)} 이벤트, {out.stat().st_size:,} bytes)")
