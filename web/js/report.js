@@ -24,11 +24,15 @@ export function 조판(md = '') {
     };
   }
   const 참고 = [];
-  const 본문 = md.replace(/[ \t]*«([^»]+)»/g, (_, 제목) => {
+  // 문장 **첫머리**에 붙은 인용은 번호만 남기면 주어가 숫자가 된다 —
+  // 실제로 「[8]는 MCU의 세 번째 페이즈에 속합니다」 가 나왔다. 그럴 때는 제목을 남긴다.
+  const 본문 = md.replace(/([ \t]*)«([^»]+)»/g, (_, 앞공백, 제목, 자리) => {
     const t = 제목.trim();
     let n = 참고.indexOf(t);
     if (n < 0) { 참고.push(t); n = 참고.length - 1; }
-    return `[${n + 1}]`;
+    const 앞 = md.slice(0, 자리).replace(/[ \t]+$/, '');
+    const 첫머리 = !앞.trim() || /[\n.!?:]$/.test(앞);
+    return 첫머리 ? `${앞공백}「${t}」[${n + 1}]` : `[${n + 1}]`;
   });
   return { 본문: 본문.trimEnd(), 참고 };
 }

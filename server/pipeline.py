@@ -79,13 +79,19 @@ def 조판(md: str):
                                          re.findall(r"^\[(\d+)\]\s+(.+)$", 꼬리, re.M)]
     참고: list[str] = []
 
+    # 문장 **첫머리**에 붙은 인용은 번호만 남기면 주어가 숫자가 된다 —
+    # 실제로 「[8]는 MCU의 세 번째 페이즈에 속합니다」 가 나왔다. 그럴 때는 제목을 남긴다.
+    # (web/js/report.js 와 같은 규칙이어야 한다 — 만들 때와 볼 때가 갈리면 안 된다)
     def 바꿔(mo):
-        t = mo.group(1).strip()
+        앞공백, t = mo.group(1), mo.group(2).strip()
         if t not in 참고:
             참고.append(t)
-        return f"[{참고.index(t) + 1}]"
+        n = 참고.index(t) + 1
+        앞 = md[:mo.start()].rstrip(" \t")
+        첫머리 = (not 앞.strip()) or 앞[-1] in "\n.!?:"
+        return f"{앞공백}「{t}」[{n}]" if 첫머리 else f"[{n}]"
 
-    return re.sub(r"[ \t]*«([^»]+)»", 바꿔, md).rstrip(), 참고
+    return re.sub(r"([ \t]*)«([^»]+)»", 바꿔, md).rstrip(), 참고
 
 
 def 참고블록(참고) -> str:
@@ -340,14 +346,20 @@ def plan(s: dict) -> dict:
 _허브 = sorted(DOCS, key=lambda d: -len(LINKS.get(d, [])))   # 링크가 많은 문서 = 중심 문서
 
 
-def 알맹이(taken: set) -> str:
-    """폴백 — 주변 섹션을 빼고, 링크가 가장 많은(중심에 있는) 문서를 고른다.
+def 알맹이(taken: set, 축: str = "서사") -> str:
+    """폴백 — 링크가 가장 많은(중심에 있는) 문서를 고른다.
 
     예전에는 코퍼스 저장 순서대로 맨 앞을 집었는데, 그 순서는 크롤링 순서라 의미가 없어서
     「아이언맨 1편」 같은 엉뚱한 문서가 걸렸다.
+
+    **축을 받는다.** 배정 프롬프트는 작품 축이면 *"'— Production' '— Reception' 조각이
+    오히려 알맹이다"* 라고 말하는데, 이 폴백은 축과 무관하게 그 조각들을 피하고 있었다 —
+    **프롬프트와 코드가 반대 방향을 가리켰다.** 실제로 q2-기본-2(작품 축)에서 폴백이
+    1/3 터졌고, 그 한 번은 답이 들어 있는 조각을 피해 간 것이다 (docs/읽고-판단.md 4-1).
     """
+    피할것 = () if 축 == "측면" else 주변섹션
     for d in _허브:
-        if d not in taken and not any(d.endswith(x) for x in 주변섹션):
+        if d not in taken and not any(d.endswith(x) for x in 피할것):
             return d
     return next((d for d in _허브 if d not in taken), "")
 
@@ -382,7 +394,7 @@ def 배정(question: str, toc: list, idxs: list, 읽은: set, 축: str = "서사
     for n, i in enumerate(idxs):
         d = picks[n] if n < len(picks) and isinstance(picks[n], str) else ""
         if d not in DOCS or d in taken:          # 없는 제목을 지어내면 코드가 바로잡는다
-            d, 폴백 = 알맹이(taken), 폴백 + 1
+            d, 폴백 = 알맹이(taken, 축), 폴백 + 1
         taken.add(d)
         out[i] = d
     if 폴백:
