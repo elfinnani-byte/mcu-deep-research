@@ -142,9 +142,14 @@ CARD = 250   # 편집장이 보는 문서 한 건의 앞부분 길이 — 코퍼
 #    단서가 아예 안 잡히는 문장이 많다. 실측 — 인용 문장 558개 중 판정 대상 186개(33%).
 #    그래서 `출처불일치` 는 **판정한 것 중에서** 센 수이고, `출처대조가능` 을 같이 본다.
 _KO2EN = {}
+# 문서 → 서고. 화면의 서고 7개가 곧 코퍼스의 갈래다 (racks.json 이 단일 출처).
+_서고 = {}
+_서고이름 = []
 try:                                    # 한글 표기는 화면용 racks.json 에만 있다 (없어도 돈다)
     _racks = json.loads((Path(__file__).parent.parent / "web" / "racks.json").read_text(encoding="utf-8"))
     _KO2EN = {ko: en for r in _racks["racks"] for en, ko in zip(r["docs"], r["ko"])}
+    _서고 = {en: r["name"] for r in _racks["racks"] for en in r["docs"]}
+    _서고이름 = [r["name"] for r in _racks["racks"]]
 except Exception:
     pass
 
@@ -695,6 +700,7 @@ def evaluate(s: dict) -> dict:
     중복 = sum(1 for _, c in Counter(d for x in secs for d in x["읽은문서"]).items() if c > 1)
     빈절 = [x["절"] for x in secs if not x["인용"]]   # 보고서 전체 근거율로는 안 보이는 절 단위 구멍
     불일치, 판정, 예시 = 출처대조(secs)
+    서고분포 = Counter(_서고[c] for c in 인용 if c in _서고)
     m = {
         "근거율": round(100 * len(근거붙은) / max(len(문장), 1), 1),
         "허위인용": sum(len(x["허위인용"]) for x in secs),
@@ -703,6 +709,10 @@ def evaluate(s: dict) -> dict:
         "중복률": round(100 * 중복 / max(len(읽은), 1), 1),
         "격리율": round(100 * COST["coord_chars"] / max(COST["coord_chars"] + COST["sub_chars"], 1), 1),
         "인용0절": len(빈절), "인용0절이름": 빈절,
+        # **어디서** 근거를 가져왔나. 근거율은 한 문서만 되풀이 인용해도 오르고,
+        # 편중은 「가장 많이 쓴 문서 하나」만 본다. 서고 수는 그 둘이 못 보는 것을 본다.
+        "인용서고수": len(서고분포), "서고전체": len(_서고이름),
+        "서고분포": dict(서고분포.most_common()),
         # 2바퀴 원고가 더 나빠서 1바퀴를 지킨 절의 수 — 안 보이면 확인할 수 없는 결정이라 센다
         "원고지킴": sum(1 for x in secs if x.get("원고지킴")),
         # 읽긴 했는데 엉뚱한 문장에 붙인 인용 — 판정할 수 있었던 것 중에서만 센다
@@ -728,6 +738,9 @@ def evaluate(s: dict) -> dict:
                    f"{round(100 * 판정 / max(len(근거붙은), 1))}%만 대조 가능)")
     if m["원고지킴"]:
         log.append(f"         2바퀴 원고가 근거를 덜 달아 1바퀴를 지킨 절 {m['원고지킴']}개")
+    if _서고이름:
+        밟음 = " · ".join(f"{k} {v}" for k, v in 서고분포.most_common())
+        log.append(f"         서고 {m['인용서고수']}/{m['서고전체']}곳 — {밟음 or '없음'}")
     return {"metrics": m, "log": log}
 
 
