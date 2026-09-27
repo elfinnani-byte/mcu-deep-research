@@ -151,6 +151,14 @@ export const DASH = [
       warn:v => v > 0,   tip:'읽지 않은 문서를 출처로 적은 횟수' },
     { key:'인용정정', label:'바로잡은 인용', unit:'회', kind:'count',
       warn:() => false,  tip:'코드가 인용을 고치거나 지운 횟수' },
+    // 「읽지 않은 문서를 적었다」(허위인용)와 다르다 — **읽긴 했는데 엉뚱한 문장에 붙인** 경우.
+    // 본문은 한국어, 문서는 영문 위키라 대조가 되는 문장이 1/3뿐이다. 그래서 그물이 아니라
+    // 참고값이고, 분모(대조 가능 수)를 반드시 같이 보인다.
+    { key:'출처불일치', label:'엉뚱한 곳에 붙음', unit:'곳', kind:'count',
+      fmt:m => m?.출처대조가능 ? `${m.출처불일치 ?? 0}/${m.출처대조가능}곳` : '—',
+      warn:(v, m) => (m?.출처대조가능 ?? 0) > 0 && v > 0,
+      tip:'인용한 문서 원문에 그 문장의 단서(작품명·영문 이름·연도)가 하나도 없는 경우. '
+        + '본문이 한국어라 대조되는 문장은 3분의 1 정도 — 분모가 그 수입니다' },
   ]},
   { title:'분담', hint:'다섯이 서로 다른 곳을 읽었나', items:[
     { key:'편중',   label:'한 문서에 쏠림', unit:'%', kind:'pct',
@@ -169,7 +177,7 @@ export const DASH_ITEMS = DASH.flatMap(g => g.items);
 // 그물 — 반드시 0이어야 하는 것들만 본다
 export function 그물(m) {
   if (!m) return null;
-  const 걸림 = DASH_ITEMS.filter(i => i.hard && i.warn(m[i.key] ?? 0));
+  const 걸림 = DASH_ITEMS.filter(i => i.hard && i.warn(m[i.key] ?? 0, m));
   return { 통과: !걸림.length, 사유: 걸림.map(i => i.label) };
 }
 

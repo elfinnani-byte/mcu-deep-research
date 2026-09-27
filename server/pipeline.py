@@ -42,6 +42,13 @@ DOCS, LINKS = CORPUS["docs"], CORPUS["links"]
     "구역": True,     # False 면 남의 구역을 피하지 않는다
     "재위임": True,   # False 면 한 바퀴로 끝낸다
     "최대반려": 2,    # 승인 게이트에서 몇 번까지 다시 짜게 할 것인가
+    # ④ 점검이 자기신고 말고 **인용 0곳** 도 빈 칸으로 볼 것인가.
+    # 10강은 ②(자기신고)를 골랐지만 *"①을 완전히 버리지는 않았다 — 인용 0곳 같은 규칙은
+    # ⑥ 평가에서 지표로 남긴다"* 고 했다. 우리는 그 지표를 **재기만 하고 고치지는 않고** 있었다.
+    # 실측: 절 제출 113건 중 자기신고 '부족' 8건(7.1%)인데, '충분' 이라 해놓고 인용 0곳인 것이
+    # 13건(11.5%) — 진짜 빈 절의 62%를 놓쳤다.
+    # 껐다 켤 수 있게 둔다. 그래야 이것 자체가 값을 하는지 나중에 잰다.
+    "인용0곳점검": True,
 }
 
 # ── 명찰 10장 — 편집장이 축 하나를 골라 5장을 배부한다 ───────────────────
@@ -106,6 +113,77 @@ CARD = 250   # 편집장이 보는 문서 한 건의 앞부분 길이 — 코퍼
 # 이야기 알맹이가 거의 없는 조각들 — 폴백으로 집으면 기자가 빈손으로 돌아온다
 주변섹션 = ("— Music", "— Reception", "— Marketing", "— Release", "— Future",
            "— Recurring cast and characters", "— Outside media", "— Character rights")
+
+# ── 출처 대조 — 인용이 제자리에 붙었는가 ────────────────────────────────
+# 「읽지 않은 문서를 인용했다」(허위인용)는 코드가 이미 잡는다.
+# 여기서 보는 것은 다르다 — **읽긴 했는데 엉뚱한 문장에 갖다 붙인 경우.**
+#
+# 판정 모델을 쓰지 않는다. 문장에서 단서(작품명·영문 고유명사·연도)를 뽑아
+# 인용한 문서 원문에 그 단서가 있는지 **문자열로만** 본다. 재현되는 숫자여야
+# 절제 실험에 쓸 수 있기 때문이다 (14강 — 채점은 코드로만).
+#
+# ⚠ 한계를 숫자로 함께 남긴다. 우리 절 본문은 한국어인데 문서는 영문 위키라
+#    단서가 아예 안 잡히는 문장이 많다. 실측 — 인용 문장 558개 중 판정 대상 186개(33%).
+#    그래서 `출처불일치` 는 **판정한 것 중에서** 센 수이고, `출처대조가능` 을 같이 본다.
+_KO2EN = {}
+try:                                    # 한글 표기는 화면용 racks.json 에만 있다 (없어도 돈다)
+    _racks = json.loads((Path(__file__).parent.parent / "web" / "racks.json").read_text(encoding="utf-8"))
+    _KO2EN = {ko: en for r in _racks["racks"] for en, ko in zip(r["docs"], r["ko"])}
+except Exception:
+    pass
+
+_인용따옴 = re.compile(r"['‘’“”\"]([^'‘’“”\"]{2,40})['‘’“”\"]")
+_영문 = re.compile(r"[A-Z][A-Za-z]{3,}")
+_연도 = re.compile(r"(?:19|20)\d{2}")
+# 어느 문서에나 나오는 말은 단서에서 뺀다 — 맞아도 아무것도 말해 주지 않는다
+_흔함 = {"Marvel", "Cinematic", "Universe", "Avengers", "Overview", "Phase",
+         "Studios", "Film", "Music", "Production", "Reception", "Comics"}
+# 문장 끝(.!?) 뒤 공백, 또는 줄바꿈에서 자른다 — 마침표 없이 줄만 바뀌는 목록도 한 문장으로 센다
+_문장쪼개기 = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _단서(문장: str) -> list:
+    """문장에서 원문과 맞댈 만한 조각을 뽑는다. 인용 표시(«…») 자체는 뺀다."""
+    본문 = re.sub(r"«[^»]+»", "", 문장)
+    out = []
+    for q in _인용따옴.findall(본문):                      # '토르' · '어벤져스: 엔드게임'
+        q = q.strip()
+        en = _KO2EN.get(q) or next((v for k, v in _KO2EN.items()
+                                    if len(q) >= 3 and k.startswith(q)), None)
+        if not en:
+            continue
+        핵 = re.sub(r"\s*[—(].*$", "", en).strip()        # 'Iron Man (2008 film)' → 'Iron Man'
+        # 전체 제목이 원문에 그대로 없을 수 있다 ('Avengers: Endgame' 은 없고 'Endgame' 은 있다).
+        # 그래서 제목과 **구별되는 꼬리** 를 둘 다 단서로 둔다.
+        for x in {핵, 핵.split(":")[-1].strip()}:
+            if len(x) >= 3:
+                out.append(x)
+    out += [w for w in _영문.findall(본문) if w not in _흔함]
+    out += _연도.findall(본문)
+    return list(dict.fromkeys(out))
+
+
+def 출처대조(정렬: list) -> tuple:
+    """(불일치 수, 판정 대상 수, 예시 몇 개)"""
+    불일치, 판정, 예시 = 0, 0, []
+    for sec in 정렬:
+        for 문장 in _문장쪼개기.split(sec.get("본문", "")):
+            문장 = 문장.strip()
+            인용 = re.findall(r"«([^»]+)»", 문장)
+            if len(문장) < 10 or not 인용:
+                continue
+            단서 = _단서(문장)
+            원문 = " ".join(DOCS.get(c, "") for c in 인용).lower()
+            if not 단서 or not 원문:
+                continue                                   # 맞댈 것이 없다 — 판정하지 않는다
+            판정 += 1
+            if not any(x.lower() in 원문 for x in 단서):
+                불일치 += 1
+                if len(예시) < 5:
+                    예시.append({"절": sec.get("절"), "인용": 인용[0],
+                                 "단서": 단서[:4], "문장": 문장[:120]})
+    return 불일치, 판정, 예시
+
 
 # ── 이벤트 · 승인 게이트 훅 ──────────────────────────────────────────────
 _sink = None        # 이벤트를 받을 곳 (SSE 서버 또는 기록기)
@@ -481,7 +559,12 @@ def researcher(s: dict) -> dict:
 def review(s: dict) -> dict:
     p, latest = s["plan"], 절모음(s)
     wheel = p["바퀴"]
-    gaps = [sec["번호"] for sec in latest.values() if not sec["충분"]]
+    # 빈 칸 = 자기신고 '부족'  또는  (스위치가 켜져 있으면) 인용 0곳
+    def 빈칸인가(sec):
+        if not sec["충분"]:
+            return True
+        return 설정["인용0곳점검"] and not sec.get("인용")
+    gaps = [sec["번호"] for sec in latest.values() if 빈칸인가(sec)]
     if (not 설정["재위임"]) or wheel >= 설정["최대바퀴"] or not gaps:
         reason = "빈 칸 없음" if not gaps else ("예산 소진" if wheel >= 설정["최대바퀴"] else "재위임 꺼짐")
         emit("review.done", wheel=wheel, gaps=[], gapNames=[], stopped=True, reason=reason)
@@ -491,9 +574,14 @@ def review(s: dict) -> dict:
     newtoc = [dict(x) for x in p["목차"]]
     for i in gaps:                                   # '무엇이 비었는지' 를 지시에 실어야 겨냥이 된다
         prev = next((x for x in latest.values() if x["번호"] == i), {})
+        # 무엇이 비었는지를 지시에 실어야 겨냥이 된다 (10강 — ①의 약점이 '그 문장을 못 준다' 였다).
+        # 인용 0곳은 자기신고가 없어도 무엇이 빈지 자명하다 — 근거가 하나도 없다는 것이다.
+        빈이유 = (prev.get("부족")
+                  or ("근거(«문서»)를 한 곳도 붙이지 못했다" if not prev.get("인용")
+                      else "근거가 모자랐다"))
         newtoc[i]["지시"] = (f"{p['목차'][i]['지시']} (재위임: 지난번에 "
                             f"«{'», «'.join(prev.get('읽은문서', [])) or '없음'}» 를 읽었지만 "
-                            f"{prev.get('부족') or '근거가 모자랐다'}. 그 빈 칸을 겨냥해 아직 안 본 문서를 찾아라)")
+                            f"{빈이유}. 그 빈 칸을 겨냥해 아직 안 본 문서를 찾아라)")
     emit("review.done", wheel=wheel, gaps=gaps, stopped=False,
          gapNames=[p["목차"][i]["절"] for i in gaps], reason=f"빈 칸 {len(gaps)}개 — 재위임")
     return {"plan": {**p, "목차": newtoc, "배치": gaps, "바퀴": wheel + 1},
@@ -542,6 +630,7 @@ def evaluate(s: dict) -> dict:
     읽은 = {d for x in secs for d in x["읽은문서"]}
     중복 = sum(1 for _, c in Counter(d for x in secs for d in x["읽은문서"]).items() if c > 1)
     빈절 = [x["절"] for x in secs if not x["인용"]]   # 보고서 전체 근거율로는 안 보이는 절 단위 구멍
+    불일치, 판정, 예시 = 출처대조(secs)
     m = {
         "근거율": round(100 * len(근거붙은) / max(len(문장), 1), 1),
         "허위인용": sum(len(x["허위인용"]) for x in secs),
@@ -550,6 +639,8 @@ def evaluate(s: dict) -> dict:
         "중복률": round(100 * 중복 / max(len(읽은), 1), 1),
         "격리율": round(100 * COST["coord_chars"] / max(COST["coord_chars"] + COST["sub_chars"], 1), 1),
         "인용0절": len(빈절), "인용0절이름": 빈절,
+        # 읽긴 했는데 엉뚱한 문장에 붙인 인용 — 판정할 수 있었던 것 중에서만 센다
+        "출처불일치": 불일치, "출처대조가능": 판정, "출처불일치예": 예시,
         # 코드가 인용을 몇 번 손봤나 — 모델이 얼마나 헛인용을 하는지 관찰하는 값
         "인용정정": sum(x.get("교정", 0) + x.get("제거", 0) for x in secs),
         "읽은문서수": len(읽은), "인용수": len(인용),
@@ -563,10 +654,13 @@ def evaluate(s: dict) -> dict:
         "모델": getattr(llm.backend(), "name", "gpt-4o-mini"),
     }
     emit("evaluate.done", metrics=m)
-    return {"metrics": m,
-            "log": [f"⑥ 평가   근거율 {m['근거율']}% · 허위인용 {m['허위인용']}곳 "
-                    f"· 편중 {m['편중']}% · 중복률 {m['중복률']}% · 인용0절 {m['인용0절']}개 "
-                    f"· 인용정정 {m['인용정정']}회"]}
+    log = [f"⑥ 평가   근거율 {m['근거율']}% · 허위인용 {m['허위인용']}곳 "
+           f"· 편중 {m['편중']}% · 중복률 {m['중복률']}% · 인용0절 {m['인용0절']}개 "
+           f"· 인용정정 {m['인용정정']}회"]
+    if 판정:
+        log.append(f"         출처불일치 {불일치}/{판정}곳 (문장 {len(근거붙은)}개 중 "
+                   f"{round(100 * 판정 / max(len(근거붙은), 1))}%만 대조 가능)")
+    return {"metrics": m, "log": log}
 
 
 # ── 그래프 ───────────────────────────────────────────────────────────────

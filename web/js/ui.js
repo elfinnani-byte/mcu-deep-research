@@ -181,11 +181,12 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     DASH.forEach(g => g.items.forEach(i => {
       const row = el.gauges.querySelector(`[data-k="${i.key}"]`);
       const v = m[i.key] ?? 0;
+      // fmt 가 있는 항목은 분모까지 같이 보여야 뜻이 통한다 (예: 출처불일치 3/186곳)
       row.querySelector('.dv').textContent =
-        i.kind === 'pct' ? pct(v) : `${v}${i.unit}`;
+        i.fmt ? i.fmt(m) : (i.kind === 'pct' ? pct(v) : `${v}${i.unit}`);
       row.querySelector('.dbar u').style.width =
         i.kind === 'pct' ? `${Math.min(100, v)}%` : (v ? '100%' : '4%');
-      row.className = 'drow' + (i.warn(v) ? (i.alarm ? ' alarm' : ' warn') : ' ok');
+      row.className = 'drow' + (i.warn(v, m) ? (i.alarm ? ' alarm' : ' warn') : ' ok');
     }));
     const 판 = 그물(m);
     const vd = $('verdict');
