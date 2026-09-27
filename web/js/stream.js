@@ -133,6 +133,16 @@ export class EventQueue {
       this.events = this.events.slice(0, this.i).concat(rejectedEvents.slice(cut));
     }
   }
+  // 결말로 건너뛴다 — 연출을 태우지 않고 남은 이벤트를 **전부** 적용한다.
+  // `?report=1` 로 보고서만 보려는 사람과, 화면을 자동으로 확인하는 도구가 쓴다.
+  // 결재는 승인으로 본다 — 건너뛰기를 부른 쪽은 이미 결말을 보겠다고 말한 것이다.
+  끝으로() {
+    this.waiting = null;
+    while (this.i < this.events.length) this.onEvent(this.events[this.i++]);
+    this.timer = 0;
+    if (this.onIdle) this.onIdle();
+  }
+
   get done() { return this.i >= this.events.length; }
   get progress() { return this.events.length ? this.i / this.events.length : 0; }
 }

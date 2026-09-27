@@ -318,6 +318,8 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
   // 갈래를 바꾸려고 매번 창을 열어야 한다. 누르면 바로 아래에 그 갈래의 칸이 펼쳐진다.
   let 열린탭 = null;
   const 탭보이기 = t => {
+    // 없는 이름이면 아무것도 하지 않는다 — 예전에는 칸만 열리고 안이 비었다(?tab=settings).
+    if (!document.querySelector(`#setupTabs button[data-tab="${t}"]`)) return;
     열린탭 = t;
     setup.classList.add('on');
     renderKey();
@@ -484,16 +486,20 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
   let 대시펼침 = false;
 
   // 배속 · 일시정지
-  document.querySelectorAll('[data-speed]').forEach(b => {
-    b.onclick = () => {
-      queue.speed = Number(b.dataset.speed);
-      document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b));
-    };
-  });
-  $('btnPause').onclick = () => {
-    queue.paused = !queue.paused;
+  // 버튼이 부르는 것과 URL·도구가 부르는 것을 **같은 함수**로 묶는다.
+  // 따로 두면 ?auto=0 으로 멈춘 화면에서 버튼 글자만 ❚❚ 로 남는다.
+  const 속도설정 = v => {
+    queue.speed = v;
+    document.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', Number(x.dataset.speed) === v));
+  };
+  const 멈춤설정 = on => {
+    queue.paused = !!on;
     $('btnPause').textContent = queue.paused ? '▶' : '❚❚';
   };
+  document.querySelectorAll('[data-speed]').forEach(b => {
+    b.onclick = () => 속도설정(Number(b.dataset.speed));
+  });
+  $('btnPause').onclick = () => 멈춤설정(!queue.paused);
 
   let approvalShown = false, knobsDone = false, doneShown = false;
   function tick() {
@@ -526,5 +532,5 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     }
     if (!world.finished) doneShown = false;
   }
-  return { tick, openReport, renderKey };
+  return { tick, openReport, renderKey, 탭보이기, 닫기, 속도설정, 멈춤설정 };
 }

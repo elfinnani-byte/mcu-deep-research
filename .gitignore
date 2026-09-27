@@ -34,3 +34,6 @@ rack-compare.png
 
 # 에셋 실험물 — 코드에서 참조하지 않는다
 asset/
+
+# 개발용 문서 뷰어 (커밋하지 않는다)
+.superpowers/

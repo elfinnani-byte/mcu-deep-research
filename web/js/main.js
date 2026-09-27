@@ -9,8 +9,29 @@ import { ScriptedSource, LiveSource, EventQueue } from './stream.js';
 import { createUI } from './ui.js';
 import { getKey } from './key.js';
 
+// ── 주소로 화면을 부른다 ────────────────────────────────────────────────
+//
+// 발표에서 「q4 역할끔의 보고서를 보여 주세요」 를 클릭 다섯 번으로 만들지 않으려는 것이다.
+// 화면을 자동으로 확인할 때도 이 문으로 들어간다 — 도구만의 뒷문을 따로 내면,
+// 도구가 통과한 경로와 사람이 보는 경로가 갈라진다.
+//
+//   ?replay=q4-역할끔   어느 녹화를 트나 (기본 q1-기본)
+//   ?tab=live|replay|key        그 갈래를 펼친 채로 연다 (settings 는 key 의 별명)
+//   ?speed=1|2|4        배속
+//   ?auto=0             멈춘 채로 연다 (스크린샷용)
+//   ?report=1           결말로 건너뛰고 보고서를 편다
+//
+// 값이 이상하면 **조용히 기본값으로 돌아간다.** 주소 한 글자 때문에 빈 화면이 뜨면
+// 그게 더 나쁘다.
 const params = new URLSearchParams(location.search);
 const 재생본 = params.get('replay') || 'q1-기본';
+const 설정켜짐 = k => { const v = params.get(k); return v !== null && v !== '0' && v !== 'false'; };
+// 화면의 탭 이름은 live · replay · key 다. 'settings' 는 사람이 먼저 떠올리는 말이라 받아 준다.
+const 탭별명 = { live: 'live', replay: 'replay', key: 'key', settings: 'key', 설정: 'key' };
+const 탭인자 = 탭별명[params.get('tab')] || null;
+const 배속인자 = [1, 2, 4].includes(Number(params.get('speed'))) ? Number(params.get('speed')) : null;
+const 멈춤인자 = params.get('auto') !== null && !설정켜짐('auto');   // auto=0 이면 멈춘 채로
+const 보고서인자 = 설정켜짐('report');
 
 const world = createWorld();
 const queue = new EventQueue(e => {
@@ -67,14 +88,32 @@ const ui = createUI(world, queue, {
   await src.load();
   queue.load(src.events());
 
-  // 반려 분기 기록이 있으면 미리 받아 둔다 (없으면 반려해도 승인과 같은 흐름)
-  try {
-    const r = await fetch(`replay/${재생본.replace(/-.*$/, '')}-반려.json`);
-    if (r.ok) 반려기록 = (await r.json()).events;
-  } catch {}
+  // 반려 분기 기록이 있으면 미리 받아 둔다 (없으면 반려해도 승인과 같은 흐름).
+  // **목록에 있는지 먼저 본다.** 예전에는 무턱대고 받아 보고 404 를 삼켰는데,
+  // 반려 기록은 q1 에만 있어서 나머지 21편은 열 때마다 콘솔에 빨간 줄을 남겼다 —
+  // 진짜 오류가 그 틈에 묻힌다.
+  const 반려이름 = `${재생본.replace(/-.*$/, '')}-반려`;
+  if (목록.some(r => r.name === 반려이름)) {
+    try {
+      const r = await fetch(`replay/${encodeURIComponent(반려이름)}.json`);
+      if (r.ok) 반려기록 = (await r.json()).events;
+    } catch {}
+  }
 
   document.getElementById('srcName').textContent =
     `재생 · ${src.meta.name}` + (반려기록 ? ' (반려 분기 있음)' : '');
+
+  // 주소에 실린 것을 적용한다 — 순서가 있다.
+  // 배속·멈춤을 먼저 걸어야 건너뛰기 뒤에 화면이 다시 흐르지 않는다.
+  if (배속인자) ui.속도설정(배속인자);
+  if (보고서인자) {
+    queue.끝으로();                 // 연출을 태우지 않고 이벤트만 전부 적용
+    ui.멈춤설정(true);
+    ui.openReport();
+  } else if (멈춤인자) {
+    ui.멈춤설정(true);
+  }
+  if (탭인자) ui.탭보이기(탭인자);
 
   window.APP = { world, queue, renderer, ui };    // 콘솔에서 상태를 들여다보는 창구
   let last = performance.now(), frames = 0, 연출시각 = 0;
