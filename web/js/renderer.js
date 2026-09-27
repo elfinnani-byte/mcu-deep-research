@@ -293,6 +293,11 @@ export function createRenderer(canvas, world) {
     });
   }
 
-  resize(); addEventListener('resize', resize);
+  // 창 크기 변화만 듣던 것을 **캔버스 자체**를 보게 바꿨다.
+  // 부팅 시점에 clientWidth 가 0이면 canvas.width 도 0이 되고, 그 뒤 창이 안 바뀌면
+  // resize 가 영영 안 불려 무대가 빈 채로 남는다 — headless 캡처에서 실제로 그랬다.
+  resize();
+  addEventListener('resize', resize);
+  if (typeof ResizeObserver === 'function') new ResizeObserver(resize).observe(canvas);
   return { draw, resize, iso, get scale(){ return s; } };
 }
