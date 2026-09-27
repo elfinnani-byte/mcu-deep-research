@@ -33,6 +33,9 @@ def 한편(p: Path, 질문표: dict) -> dict:
         "question": d.get("question", ""),
         "axis": 축,
         "rejected": bool(d.get("rejected")),
+        # 세대 — 「인용0곳점검」이 들어오기 전 실행은 ④ 점검이 자기신고만 보던 시절 것이다.
+        # 설정이 같아도 **같은 조건이 아니다.** 화면이 「조건은 같다」고 말하면 안 된다.
+        "세대": "새" if "인용0곳점검" in (d.get("settings") or {}) else "옛",
         "off": [k for k in 스위치 if d.get("settings", {}).get(k) is False],
         "metrics": {k: m.get(k) for k in
                     ("근거율", "허위인용", "편중", "중복률", "인용0절") if k in m},
@@ -46,7 +49,14 @@ def 한편(p: Path, 질문표: dict) -> dict:
 def 만들기() -> dict:
     질문표 = {q["질문"]: q for q in
               json.loads((ROOT / "data/questions.json").read_text(encoding="utf-8"))["질문"]}
-    편 = [한편(p, 질문표) for p in sorted(REPLAY.glob("*.json")) if p.stem != "index"]
+    편 = [한편(p, 질문표) for p in REPLAY.glob("*.json") if p.stem != "index"]
+    # 파일 이름순으로 두면 `q5-기본-2` 가 `q5-기본` 보다 앞선다('-' < '.').
+    # 그러면 화면이 반복분을 원본으로 띄운다 — 회차를 떼고 정렬하고 회차를 뒤에 붙인다.
+    def 열쇠(r):
+        조각 = r["name"].split("-")
+        회차 = int(조각[-1]) if 조각[-1].isdigit() else 1
+        return ("-".join(조각[:-1]) if 조각[-1].isdigit() else r["name"], 회차)
+    편.sort(key=열쇠)
     return {"replays": 편}
 
 

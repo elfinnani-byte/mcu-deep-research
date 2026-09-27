@@ -404,15 +404,23 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     // q2 는 전부 켠 조건으로 두 번 돌렸고 결과가 꽤 달랐다 (근거 23.7% ↔ 29.3%).
     // 설정이 아니라 **흔들림**을 보여 주는 기록이라 두 축에는 들어가지 않는다.
     // 고른 조합에 기록이 둘 이상이면, 첫 번째(위에 띄운 것) 말고 나머지가 '다시 돌림' 이다
+    // ⚠ 세대가 다른 기록을 「조건은 같다」고 말하면 안 된다. 「인용0곳점검」이 들어오기
+    //   전에 뜬 것은 ④ 점검이 자기신고만 보던 시절이라 재위임 바퀴 수부터 다르다.
     const 또 = 본편.filter(x => x.question === 고른질문 && 변형키(x) === 고른변형 && x !== r);
-    $('pickExtra').innerHTML = 또.length
-      ? `<h5>같은 설정 다시 돌림 <span class="ro">조건은 같고 결과만 다릅니다 — 흔들리는 폭을 보세요</span></h5>
-         <div class="picks">${또.map(x => {
+    const 칸 = (편들, 제목, 풀이) => 편들.length
+      ? `<h5>${제목} <span class="ro">${풀이}</span></h5>
+         <div class="picks">${편들.map(x => {
             const mm = x.metrics || {};
             return `<button class="pick sm" data-go2="${x.name}">
               <b>${x.name}</b><span>근거 ${mm.근거율 ?? '—'}% · 쏠림 ${mm.편중 ?? '—'}% · 근거 없는 절 ${mm.인용0절 ?? '—'}개</span>
             </button>`; }).join('')}</div>`
       : '';
+    $('pickExtra').innerHTML =
+      칸(또.filter(x => x.세대 === r?.세대), '같은 설정 다시 돌림',
+         '조건은 같고 결과만 다릅니다 — 흔들리는 폭을 보세요')
+      // 「이전」이라 쓰면 어느 쪽을 띄웠느냐에 따라 뒤집힌다 — 어느 쪽에서 봐도 맞는 말로 둔다
+      + 칸(또.filter(x => x.세대 !== r?.세대), '코드가 다르던 때의 기록',
+           '설정 이름은 같지만 ④ 점검이 달랐습니다 — 나란히 재면 안 됩니다');
     document.querySelectorAll('[data-go2]').forEach(b => {
       b.onclick = () => { location.search = `?replay=${encodeURIComponent(b.dataset.go2)}`; };
     });
