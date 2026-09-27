@@ -97,6 +97,7 @@ Source ──> EventQueue ──> Choreographer ──> World ──> Renderer
 |---|---|
 | [`REPORT.md`](REPORT.md) | **과제 보고서** — 여기부터 |
 | [`docs/읽고-판단.md`](docs/읽고-판단.md) | 보고서를 나란히 읽고 내린 판단 (16강) |
+| [`docs/실패기록.md`](docs/실패기록.md) | 실패 10건 전문 (증상 → 첫 의심 → 확인 → 진짜 원인 → 교훈) |
 | [`docs/구조도.md`](docs/구조도.md) | 그림 다섯 장 (4층 · 6노드 · 두 번 호출 · 모듈 · 도구) |
 | [`docs/사전등록.md`](docs/사전등록.md) | 반복 녹화 **전에** 못박은 판정 규칙 |
 | [`docs/절제실험-결과.md`](docs/절제실험-결과.md) | 설정별 수치 전체 |
