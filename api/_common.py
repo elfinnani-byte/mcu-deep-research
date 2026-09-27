@@ -38,8 +38,33 @@ SWITCHES = ("역할", "배정", "구역", "재위임")
 
 
 def 키지우기(text: str) -> str:
-    """혹시 섞여 나온 키를 가린다 — 오류 메시지를 그대로 내보내기 전에 거른다."""
-    return re.sub(r"sk-[A-Za-z0-9_\-]{12,}", "sk-…", str(text))
+    """혹시 섞여 나온 키를 가린다 — 오류 메시지를 그대로 내보내기 전에 거른다.
+
+    ⚠ 예전 정규식은 `[A-Za-z0-9_-]{12,}` 만 봤다. 그런데 OpenAI 가 돌려주는 오류에는
+    **자기가 가린 키**가 들어 있다 — `sk-proj-***************************cdef`.
+    별표가 섞여 있어 하나도 안 지워졌고, 꼬리 네 글자가 그대로 방문자에게 갔다.
+    이제 `sk-` 뒤의 공백 아닌 것은 전부 지운다.
+    """
+    return re.sub(r"sk-\S+", "sk-…", str(text))
+
+
+# 밖에서 온 오류를 방문자가 읽을 수 있는 말로 바꾼다.
+# 키가 틀렸을 뿐인데 500 과 스택 트레이스를 보여 주면 「고장났다」로 읽힌다.
+_인증말 = ("incorrect api key", "invalid api key", "authenticationerror",
+           "invalid_api_key", "401")
+_한도말 = ("rate limit", "ratelimit", "quota", "insufficient_quota", "429")
+
+
+def 오류정리(e: Exception) -> tuple:
+    """(상태코드, 사람이 읽을 메시지, 트레이스를 붙일까)"""
+    쪽 = f"{type(e).__name__}: {e}".lower()
+    if any(k in 쪽 for k in _인증말):
+        return 401, "키가 올바르지 않습니다 — ⚙ 설정에서 다시 확인해 주세요. (OpenAI 가 거절했습니다)", False
+    if any(k in 쪽 for k in _한도말):
+        return 429, "OpenAI 쪽 한도에 걸렸습니다 — 잔액이나 분당 한도를 확인해 주세요.", False
+    if "timeout" in 쪽 or "timed out" in 쪽:
+        return 504, "모델 응답이 너무 늦습니다 — 잠시 뒤에 다시 눌러 주세요.", False
+    return 500, 키지우기(f"{type(e).__name__}: {e}"), True
 
 
 def 본문읽기(handler) -> dict:

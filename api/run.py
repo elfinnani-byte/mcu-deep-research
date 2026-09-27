@@ -46,7 +46,7 @@ class handler(BaseHTTPRequestHandler):
         # **무거운 것은 여기서 부른다.** 모듈 맨 위에서 부르면 실패가
         # FUNCTION_INVOCATION_FAILED 로만 보이고 왜 죽었는지 알 수 없다.
         try:
-            from _common import (json보내기, 본문읽기, 실행중, 준비, 질문뽑기, 키지우기, 파이프라인)
+            from _common import (json보내기, 본문읽기, 실행중, 오류정리, 준비, 질문뽑기, 키지우기, 파이프라인)
         except Exception as e:
             return _오류(self, 500, {"error": f"함수 적재 실패 — {type(e).__name__}: {e}",
                                      "trace": traceback.format_exc()[-700:]})
@@ -84,7 +84,7 @@ class handler(BaseHTTPRequestHandler):
                 P.on_event(q.put)
                 P.run_from(question, plan, settings)
             except Exception as e:
-                q.put({"type": "error", "message": 키지우기(f"{type(e).__name__}: {e}")})
+                q.put({"type": "error", "message": 오류정리(e)[1]})
             finally:
                 P.on_event(None)
                 q.put(끝)
