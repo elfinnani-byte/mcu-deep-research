@@ -96,9 +96,13 @@ def 혼자(question: str, 예산: int, 말하기=print) -> dict:
         frontier |= set(P.LINKS.get(다음, []))
         말하기(f"   [{i+1}/{예산}] {다음[:44]:46s} {'관련' if 관련 else '관련 없음'}")
 
+    # 길이도 맞춘다. 팀은 절마다 600자 이상을 요구받으므로 절수×600 이 팀의 하한이다.
+    # 처음엔 2,000자라고 적어 놓고 3,648자 vs 2,038자를 「팀이 이겼다」로 읽을 뻔했다 —
+    # 예산은 코드로 맞춰 놓고 프롬프트에서 묶어 둔 꼴이었다 (runs/길이불일치/).
+    하한 = P.설정["절수"] * 600
     raw = P.ask(
         "You are a research writer working alone. Write ONE long report answering the question using "
-        "ONLY the notes below. At least 2,000 characters, in Korean, with section headings (## ). "
+        f"ONLY the notes below. At least {하한:,} characters, in Korean, with section headings (## ). "
         + P.인용규칙 +                                  # 팀과 **같은 문자열**
         "답은 한국어로. 보고서 본문만 쓴다 (JSON 아님).",
         f"[질문] {question}\n"

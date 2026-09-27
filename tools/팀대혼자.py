@@ -53,14 +53,25 @@ def main() -> int:
             continue
         이름 = ", ".join(n for n, _ in 뽑)
         for k in 견줄것:
-            t = st.median([m[k] for _, m in 뽑 if k in m] or [0])
+            값들 = [m[k] for _, m in 뽑 if k in m] or [0]
+            t = st.median(값들)
             s = solo["metrics"].get(k, 0)
             클수록 = k not in ("편중", "허위인용", "출처불일치")
             승 = "무" if t == s else ("팀" if (t > s) == 클수록 else "혼자")
-            이김[승] += 1
-            print(f"{qid:6s}{k:10s}{t:>9.1f}{s:>9.1f}{승:>9s}   {이름 if k == 견줄것[0] else ''}")
+            # **차이만 보면 또 속는다.** 팀 칸이 여러 편이면 그 안의 흔들림 폭을 같이 보인다.
+            # 차이가 그 폭보다 작으면 이긴 것이 아니라 못 가른 것이다.
+            폭 = max(값들) - min(값들) if len(값들) > 1 else None
+            판 = 승
+            if 폭 is not None and abs(t - s) <= 폭:
+                판 = f"{승}(잡음내)"
+            else:
+                이김[승] += 1
+            꼬리 = f"   폭 {폭:.1f}" if 폭 is not None else ""
+            print(f"{qid:6s}{k:10s}{t:>9.1f}{s:>9.1f}{판:>11s}{꼬리}"
+                  + (f"   {이름}" if k == 견줄것[0] else ""))
         print()
-    print("이긴 횟수 — " + " · ".join(f"{k} {v}" for k, v in 이김.items()))
+    print("이긴 횟수 (잡음 밖만) — " + " · ".join(f"{k} {v}" for k, v in 이김.items()))
+    print("   팀 칸이 1편뿐인 질문은 폭을 못 재므로 그대로 셌다 — 그것도 못 믿는다")
 
     print("\n뺀 지표와 이유")
     for k, v in json.loads(
