@@ -1,0 +1,36 @@
+# 자격증명 — 절대 커밋하지 않는다
+.env
+*.env
+!*.env.example
+*.credentials.json
+
+# 파이썬
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 작업 산출물
+build.log
+*.log
+server/workspace/
+
+# 에디터·OS
+.DS_Store
+.vscode/
+.idea/
+docs/강의원문/
+
+# 외부 에셋 원본 — 210MB. 쓰기로 한 것만 web/assets/ 에 담고 원본은 저장소 밖에 둔다
+2dClassroomAssetPackByStyloo/
+2dClassroomAssetPackByStyloo.zip
+
+# 개발 중 찍은 캔버스 캡처 (serve.py 의 POST /_shot)
+web/_shots/
+
+# 실험 중이던 화면
+web/proto.html
+rack-compare.png
+
+# 에셋 실험물 — 코드에서 참조하지 않는다
+asset/

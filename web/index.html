@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>마블 리서치 데스크</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="hud">
+  <b class="brand">마블 리서치 데스크</b>
+  <nav class="tabs" id="setupTabs">
+    <button data-tab="live">▶ 라이브</button>
+    <button data-tab="replay" class="on">⏵ 재생</button>
+    <button data-tab="key">⚙ 설정</button>
+  </nav>
+  <span id="q" class="q"></span>
+  <span id="axis" class="tag axis off">—</span>
+  <span id="clock" class="clock">0.0초</span>
+  <span class="spacer"></span>
+  <span id="srcName" class="src">재생</span>
+  <div class="ctrl">
+    <button id="btnPause" title="일시정지">❚❚</button>
+    <button data-speed="1" class="on">1×</button>
+    <button data-speed="2">2×</button>
+    <button data-speed="4">4×</button>
+  </div>
+  <div id="progress" class="progress"></div>
+</header>
+
+<main id="layout">
+  <!-- 좌 : 편집국 + 접어 두는 실행 로그 -->
+  <aside id="board" class="col">
+    <section class="card grow">
+      <h4>편집국 · 공정 <span id="teamCount" class="dim"></span></h4>
+      <div id="team"></div>
+    </section>
+    <section class="card fold" id="logCard">
+      <h4 class="foldhead">실행 로그 <span class="dim" id="logCount"></span><i>▾</i></h4>
+      <div id="log" class="foldbody"></div>
+    </section>
+  </aside>
+
+  <!-- 중앙 : 무대 -->
+  <div id="stageWrap">
+    <div id="caption"><b></b><span></span></div>
+    <canvas id="stage"></canvas>
+  </div>
+
+  <!-- 우 : 대시보드 · 산출물 · 사용량 -->
+  <aside id="right" class="col">
+    <section class="card fold" id="dashCard">
+      <h4 class="foldhead">📊 대시보드 <span class="dim" id="dashHint">계량 전</span><i>▾</i></h4>
+      <div id="gauges" class="foldbody"></div>
+    </section>
+    <section class="card">
+      <h4>산출물</h4>
+      <div id="outputs"></div>
+    </section>
+    <section class="card">
+      <h4>사용량 <span id="usageMode" class="dim"></span></h4>
+      <div id="usage"></div>
+    </section>
+  </aside>
+</main>
+
+<!-- 설정 패널 — 라이브 · 재생 · 설정 세 갈래 -->
+<div id="setup" class="drop">
+  <div class="sheet" id="setupSheet">
+    <button id="btnCloseSetup" class="close dark">닫기</button>
+
+    <!-- 라이브 — 직접 질문을 넣어 돌려 본다 -->
+    <section class="tabpane" data-pane="live">
+      <div class="lead">질문을 직접 넣고 <b>실제로 한 번 돌려 봅니다.</b>
+        서고 51건은 그대로 쓰고, 모델 호출은 본인 키로 나갑니다.</div>
+      <textarea id="liveQ" rows="2" placeholder="예) 토니 스타크가 관여한 사건들과 그 결과는 무엇인가?"></textarea>
+      <h5>끄고 켤 것 <span class="ro">하나씩 꺼 보면 무엇이 값을 하는지 보입니다 (교재 15강)</span></h5>
+      <div class="knobs" id="liveKnobs"></div>
+      <div class="runrow">
+        <span class="cost">예상 ≈ $0.025 · 1~3분</span>
+        <button id="btnRun" disabled>실행</button>
+      </div>
+      <div id="runState" class="runstate"></div>
+      <div id="liveNoKey" class="nokey">키가 없어 라이브를 쓸 수 없습니다 —
+        <b data-goto="key">⚙ 설정</b> 에서 본인 키를 넣어 주세요.</div>
+    </section>
+
+    <!-- 재생 — 질문 하나와 설정 하나를 고르면 그 녹화를 튼다 -->
+    <section class="tabpane" data-pane="replay">
+      <div class="lead">키 없이 볼 수 있습니다. <b>실제로 돌린 기록</b>을 그대로 재생합니다.</div>
+      <h5>① 질문 <span class="ro">편집장이 고른 축이 함께 붙습니다</span></h5>
+      <div class="picks" id="pickQ"></div>
+      <h5>② 설정 <span class="ro">같은 질문을 설정만 바꿔 돌린 기록입니다</span></h5>
+      <div class="picks" id="pickV"></div>
+      <div id="pickInfo" class="pickinfo"></div>
+      <h5>이 기록의 실행 설정 <span class="ro">읽기 전용 — 기록에 담긴 값입니다</span></h5>
+      <div id="knobs" class="knobs"></div>
+      <div id="pickExtra"></div>
+    </section>
+
+    <!-- 설정 — 키 -->
+    <section class="tabpane" data-pane="key">
+      <h5>🔑 API 키 <span class="ro">넣으면 라이브가 열립니다</span></h5>
+      <div class="keyrow">
+        <input id="apiKey" type="password" placeholder="sk-…">
+        <button id="btnSaveKey">저장</button>
+        <button id="btnClearKey" class="ghost2">삭제</button>
+      </div>
+      <div id="keyState" class="keystate"></div>
+      <div class="keynote">키는 <b>이 브라우저(localStorage)에만</b> 저장되고 OpenAI 외 어디로도 가지
+        않습니다 — 애초에 서버가 없습니다. 실행 1회당 약 <b>$0.025</b>이며 비용은 본인 부담입니다.</div>
+    </section>
+  </div>
+</div>
+
+<!-- 승인 게이트 -->
+<div id="modal" class="overlay">
+  <div class="sheet">
+    <div class="shead">🔏 목차 결재 — 최고 승인자(당신)의 확인이 필요합니다</div>
+    <div id="modalBody"></div>
+    <div class="sfoot" id="sfoot">
+      <span class="ask">보고서 목차가 질문의 주제와 맞는지 확인해주세요</span>
+      <input id="reason" placeholder="반려 사유를 적어 주세요">
+      <button id="btnReject" class="reject">반려</button>
+      <button id="btnApprove" class="approve">승인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 보고서 뷰어 -->
+<div id="report" class="overlay">
+  <div class="sheet paper">
+    <button id="btnCloseReport" class="close">닫기</button>
+    <div class="pubhead"><i></i>보고서가 발행되었습니다</div>
+    <div id="reportBody"></div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
