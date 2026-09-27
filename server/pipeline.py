@@ -463,12 +463,27 @@ def fanout(s: dict):
 
 
 # ── ③ 조사 — 현장기자 5명 · 노드 하나가 에이전트 한 명 ───────────────────
-def 요약(doc: str, 지시: str, 명찰: str) -> str:
-    """도구 하나 — 문서를 통째로 읽고 지시에 맞는 대목만 간추려 돌려준다."""
+# 인용·문체 규칙 — **팀과 혼자(baseline)가 같은 문자열을 쓴다.**
+# 따로 적어 두면 "프롬프트가 달라서 진 것"이라는 반론이 성립한다. 15강이 대조군을
+# 약하게 만들지 말라고 한 것은 예산만이 아니라 이런 것도 포함한다.
+인용규칙 = (
+    "Append the source document title as «Document Title» to each sentence that rests on a source. "
+    "Do not write anything not in the notes.\n"
+    # 문체는 **쓰는 자리에서** 맞춘다. ⑤ 종합에서 다시 쓰면 문체는 통일되지만
+    # 격리가 무너지고 인용이 샌다 (12강). 여기서 어미만 지정하면 둘 다 지킨다.
+    "[문체] 모든 문장은 '~습니다/~입니다' 체로 끝낸다. '~이다/~한다' 체와 섞지 않는다.\n")
+
+
+def 요약(doc: str, 지시: str, 명찰: str, coord: bool = False) -> str:
+    """도구 하나 — 문서를 통째로 읽고 지시에 맞는 대목만 간추려 돌려준다.
+
+    `coord=True` 는 혼자 하는 대조군이 쓴다. 프롬프트는 같고 **계량만** 달라진다 —
+    혼자 하는 쪽은 요약이 전부 자기 창에 쌓이므로 그 글자는 코디네이터 몫으로 센다.
+    """
     return ask(
         f"You are a field reporter ({명찰}). Read the document and summarize ONLY what relates to the "
         "instruction, in at most six sentences, in Korean. If nothing relates, answer exactly '관련 없음'.",
-        f"[지시] {지시}\n\n[문서]\n{DOCS.get(doc, '')}")
+        f"[지시] {지시}\n\n[문서]\n{DOCS.get(doc, '')}", coord=coord)
 
 
 def 후보목록(read: set, 피하기: list, frontier: set) -> list:
@@ -479,7 +494,7 @@ def 후보목록(read: set, 피하기: list, frontier: set) -> list:
     return []
 
 
-def 다음문서(절: str, 지시: str, read: set, cand: list, 빈손: bool = False):
+def 다음문서(절: str, 지시: str, read: set, cand: list, 빈손: bool = False, coord: bool = False):
     """빈손(모은 자료가 0)이면 그만두지 못한다 — 자료 없이 절을 쓰면 모델이 상식으로 채운다."""
     if not cand:
         return None
@@ -490,7 +505,7 @@ def 다음문서(절: str, 지시: str, read: set, cand: list, 빈손: bool = Fa
         'there is nothing more worth reading. JSON only: {"문서":"후보에 있는 제목"} 또는 {"문서":null}'
         + 금지,
         f"[맡은 절] {절} — {지시}\n[이미 읽음] {', '.join(sorted(read)) or '없음'}\n"
-        "[후보]\n" + "\n".join(f"- {c}" for c in cand[:60]))
+        "[후보]\n" + "\n".join(f"- {c}" for c in cand[:60]), coord=coord)
     pick = jload(raw, {}).get("문서")
     if pick in cand:
         return pick
@@ -559,12 +574,9 @@ def researcher(s: dict) -> dict:
 
     raw = ask(
         f"You are the {t['명찰']} of a research desk. Write ONE section of the report using ONLY the notes "
-        "below. 6~12 sentences, at least 600 characters, in Korean. Append the source document title as "
-        "«Document Title» to each sentence that rests on a source. Do not write anything not in the notes.\n"
+        "below. 6~12 sentences, at least 600 characters, in Korean. "
+        + 인용규칙 +                                   # 혼자 하는 대조군과 **같은 문자열**
         "If the notes were not enough to cover the instruction, set 충분 to false and say what is missing.\n"
-        # 문체는 **쓰는 자리에서** 맞춘다. ⑤ 종합에서 다시 쓰면 문체는 통일되지만
-        # 격리가 무너지고 인용이 샌다 (12강). 여기서 어미만 지정하면 둘 다 지킨다.
-        "[문체] 모든 문장은 '~습니다/~입니다' 체로 끝낸다. '~이다/~한다' 체와 섞지 않는다.\n"
         '답은 한국어로. JSON만: {"본문":"...","충분":true,"부족":""}',
         # 인용을 금지하는 경고는 두지 않는다 — 넣었더니 모델이 위축해 인용을 아예 안 붙였다.
         # 자유롭게 달게 하고, 잘못 단 것은 아래 인용교정() 이 코드로 정리한다.
