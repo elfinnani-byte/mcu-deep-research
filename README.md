@@ -139,7 +139,7 @@ corpus.json                자료 51건 + 링크. 손으로 고치지 않고 bui
 build_corpus.py            위키백과 수집 스크립트
 data/questions.json        질문 8건 — 유형과 「왜 나눌 만한가」. 질문은 여기 한 곳에만
 
-server/pipeline.py         파이프라인 6단계 + 지표 (866줄)
+server/pipeline.py         파이프라인 6단계 + 지표 (881줄)
 server/llm.py              모델 호출 · 계량기 · 키 주입
 server/record.py           실행을 web/replay/*.json 으로 녹화
 server/batch.py            절제 실험 20편
