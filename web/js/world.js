@@ -176,7 +176,12 @@ export function 메모전달(w, dur = 0.9) {
 export function gather(w, dur = 1.8) {
   const ed = w.staff.find(x => x.id === 'editor');
   if (ed) moveTo(w, ed, MEET.editor.gx, MEET.editor.gy, dur);
-  w.reporters.forEach((r, i) => {
+  // **맡은 절이 있는 기자만** 회의에 들어간다. 자리는 다섯으로 고정인데 목차가 3절이면
+  // 두 명은 맡은 절이 없다 — 그 둘까지 탁자로 보내면 화면이 「다섯이 일했다」고 말하게 된다.
+  // 바로 아래 say(w,'all') 은 처음부터 r.section 으로 걸렀는데 여기만 빠져 있었다.
+  // 녹화 34편이 전부 5절이라 드러나지 않았고, 배포 기본값 「간단」(3절)에서 보였다.
+  // 자리는 앞에서부터 채운다 — 5절이면 걸러도 순서가 같아 옛 녹화의 그림은 그대로다.
+  w.reporters.filter(r => r.section).forEach((r, i) => {
     const s = MEET.reps[i]; if (s) moveTo(w, r, s.gx, s.gy, dur);
   });
 }
