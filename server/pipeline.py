@@ -636,7 +636,11 @@ def review(s: dict) -> dict:
     gaps = [sec["번호"] for sec in latest.values() if 빈칸인가(sec)]
     if (not 설정["재위임"]) or wheel >= 설정["최대바퀴"] or not gaps:
         reason = "빈 칸 없음" if not gaps else ("예산 소진" if wheel >= 설정["최대바퀴"] else "재위임 꺼짐")
-        emit("review.done", wheel=wheel, gaps=[], gapNames=[], stopped=True, reason=reason)
+        # 빈 칸을 **남긴 채** 멈출 수 있다(예산 소진 · 재위임 꺼짐). 그때 gaps 를 [] 로 보내면
+        # 화면은 빈 칸이 없었던 것과 구별하지 못한다 — 실제로 초록불이 켜졌다.
+        # 필드는 그대로 두고 값만 사실대로 싣는다(스키마 변경 아님).
+        emit("review.done", wheel=wheel, gaps=gaps,
+             gapNames=[p["목차"][i]["절"] for i in gaps], stopped=True, reason=reason)
         return {"plan": {**p, "배치": [], "멈춘이유": reason},
                 "log": [f"④ 점검   {len(latest)}절 중 빈 칸 {len(gaps)}개 — 종합으로 ({reason})"]}
 

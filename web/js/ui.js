@@ -428,6 +428,11 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
   renderPicks();
 
   // ── 키 · 라이브 실행 ─────────────────────────────────────
+  // 서버의 PRESETS(api/_common.py) 와 같은 값. 화면이 규모를 못 고르던 때에는 preset 을
+  // 아예 안 보내서 배포판 라이브가 **항상 「간단」**이었고, 방문자는 그 사실을 알 수 없었다.
+  const 프리셋 = { 간단: { 절수: 3, 절예산: 2, 최대바퀴: 1 },
+                   정식: { 절수: 5, 절예산: 3, 최대바퀴: 2 } };
+  let 규모 = '간단';
   const 라이브설정 = { 역할: true, 배정: true, 구역: true, 재위임: true };
 
   function renderKey() {
@@ -448,16 +453,47 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
   $('btnClearKey').onclick = () => { setKey(''); $('apiKey').value = ''; renderKey(); };
   $('liveQ').oninput = renderKey;
 
-  $('liveKnobs').innerHTML = Object.keys(라이브설정).map(k =>
-    `<div class="knob sw2" data-k="${k}">${k}<b class="on">켜짐</b></div>`).join('');
-  document.querySelectorAll('.sw2').forEach(sw => {
-    sw.onclick = () => {
-      const k = sw.dataset.k; 라이브설정[k] = !라이브설정[k];
-      const b = sw.querySelector('b');
-      b.textContent = 라이브설정[k] ? '켜짐' : '꺼짐';
-      b.className = 라이브설정[k] ? 'on' : 'off';
-    };
-  });
+  function renderLiveKnobs() {
+    const p = 프리셋[규모];
+    // 최대바퀴가 1이면 ④ 점검이 **첫 바퀴에 곧바로 상한**이라 재위임이 돌 자리가 없다.
+    // 켜 둔 채로 두면 「켜짐」이라고 적힌 죽은 스위치가 된다 — 사실대로 「불가」로 적는다.
+    const 재위임가능 = p.최대바퀴 > 1;
+    const 규모설명 = `간단 ${프리셋.간단.절수}절·${프리셋.간단.절예산}문서·${프리셋.간단.최대바퀴}바퀴 / ` +
+                     `정식 ${프리셋.정식.절수}절·${프리셋.정식.절예산}문서·${프리셋.정식.최대바퀴}바퀴 ` +
+                     `— 정식은 느려서 60초 제한에 끊길 수 있습니다`;
+    $('liveKnobs').innerHTML =
+      `<div class="knob sw2" data-k="__규모" title="${규모설명}">규모` +
+      `<b class="${규모 === '정식' ? 'on' : 'off'}">${규모}</b></div>` +
+      Object.keys(라이브설정).map(k => {
+        const 죽음 = k === '재위임' && !재위임가능;
+        const on = !죽음 && 라이브설정[k];
+        const 툴팁 = 죽음 ? ' title="「간단」은 최대바퀴가 1이라 재위임이 한 바퀴도 못 돕니다 — 「정식」으로 바꾸세요"' : '';
+        return `<div class="knob sw2${죽음 ? ' dead' : ''}" data-k="${k}"${툴팁}>${k}` +
+               `<b class="${on ? 'on' : 'off'}">${죽음 ? '불가' : (on ? '켜짐' : '꺼짐')}</b></div>`;
+      }).join('');
+    // 표기는 실측이다. 녹화 12편(정식) 중앙값 $0.0276 · 33초(최대 59초),
+    // 간단은 라이브 1편 $0.0086 · 17.4초. 한때 규모와 무관하게 「$0.025 · 1~3분」이라
+    // 적혀 있었는데, 1분을 넘긴 실행은 한 번도 없었다.
+    const 비용칸 = $('liveCost');
+    if (비용칸) {
+      비용칸.textContent = 규모 === '정식'
+        ? '예상 ≈ $0.03 · 30~60초 — 60초 제한에 닿을 수 있습니다'
+        : '예상 ≈ $0.01 · 20초 안팎';
+      비용칸.title = 규모 === '정식'
+        ? '녹화 12편 실측 — 비용 중앙값 $0.0276(최대 $0.0401) · 시간 중앙값 33초(최대 59초)'
+        : '라이브 1편 실측 — $0.0086 · 17.4초 (표본 1편)';
+    }
+    $('liveKnobs').querySelectorAll('.sw2').forEach(sw => {
+      sw.onclick = () => {
+        const k = sw.dataset.k;
+        if (k === '__규모') 규모 = 규모 === '간단' ? '정식' : '간단';
+        else if (sw.classList.contains('dead')) return;     // 죽은 스위치는 눌러도 거짓말하지 않는다
+        else 라이브설정[k] = !라이브설정[k];
+        renderLiveKnobs();
+      };
+    });
+  }
+  renderLiveKnobs();
 
   $('btnRun').onclick = async () => {
     const q = $('liveQ').value.trim(); if (!q) return;
@@ -469,7 +505,7 @@ export function createUI(world, queue, { onApprove, onRun, replays = [], current
     $('runState').textContent = '코퍼스를 받고 편집장을 부르는 중… (탭을 닫으면 중단됩니다)';
     setup.classList.remove('on');
     try {
-      await onRun?.(q, { ...라이브설정 });
+      await onRun?.(q, { ...라이브설정, preset: 규모 });
       $('runState').textContent = '완료';
     } catch (e) {
       $('runState').className = 'runstate err';

@@ -400,3 +400,7 @@ canvas#stage{display:block;width:100%;height:100%}
 #btnRun:disabled{opacity:.35;cursor:default}
 .runstate{font-size:11.5px;margin-top:9px;line-height:1.6;min-height:1em}
 .runstate.err{color:#ff9aa5}
+
+/* 돌 수 없는 스위치 — 눌러도 안 바뀐다는 것이 보여야 한다 */
+.knob.sw2.dead{opacity:.45;cursor:not-allowed;border-style:dashed}
+.knob.sw2.dead:hover{border-color:#23415a}

@@ -14,6 +14,13 @@ import statistics as st
 import sys
 from pathlib import Path
 
+# Windows 기본 콘솔은 cp949 라 「—」 같은 글자에서 죽는다.
+# 검사 도구가 검사 결과 대신 인코딩 오류를 뱉으면 안 되므로 출력만 UTF-8 로 돌린다.
+for _스트림 in (sys.stdout, sys.stderr):
+    if hasattr(_스트림, "reconfigure"):
+        _스트림.reconfigure(encoding="utf-8", errors="replace")
+
+
 ROOT = Path(__file__).resolve().parent.parent
 견줄것 = ("근거율", "편중", "허위인용", "출처불일치", "읽은문서수", "인용수", "보고서자수")
 

@@ -10,9 +10,17 @@
 질문의 **유형**과 **「왜 나눌 만한가」** 는 `data/questions.json` 에서 가져다 붙인다.
 화면이 그것을 「여기서 볼 것」으로 보여 주므로, 질문을 고치면 화면도 따라온다.
 """
+import sys
 import argparse
 import json
 from pathlib import Path
+
+# Windows 기본 콘솔은 cp949 라 「—」 같은 글자에서 죽는다.
+# 검사 도구가 검사 결과 대신 인코딩 오류를 뱉으면 안 되므로 출력만 UTF-8 로 돌린다.
+for _스트림 in (sys.stdout, sys.stderr):
+    if hasattr(_스트림, "reconfigure"):
+        _스트림.reconfigure(encoding="utf-8", errors="replace")
+
 
 ROOT = Path(__file__).resolve().parent.parent
 REPLAY = ROOT / "web" / "replay"

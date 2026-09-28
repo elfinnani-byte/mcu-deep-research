@@ -175,7 +175,11 @@ export function apply(w, e) {
       gather(w, 1.6);
       say(w, 점검대사(w, e));
       if (e.stopped) doneNode(w, 'review');
-      w.reviewLamp = e.stopped ? 'pass' : 'gap';
+      // 멈췄다고 통과가 아니다. 예산이 떨어져 **빈 칸을 남긴 채** 멈춘 것도 stopped 다.
+      // 한때 stopped 만 보고 초록불을 켰다 — 3절 중 2절에 근거가 0곳인 실행에도 켜졌다.
+      // reason 으로 가른다. gaps 를 버리고 뜬 옛 녹화 11편도 이 규칙이면 같이 고쳐진다.
+      const 빈칸남음 = (e.gaps || []).length > 0 || (e.stopped && e.reason && e.reason !== '빈 칸 없음');
+      w.reviewLamp = 빈칸남음 ? 'gap' : 'pass';
       직원(w,'editor').say = e.reason || '';
       if (!e.stopped) {
         (e.gaps || []).forEach(i => { const r = w.reporters[i]; if (r) r.pose = 'reject'; });
